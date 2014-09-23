@@ -4,7 +4,9 @@
 ## use this classpath if you're working from source
 PROPPR:=/home/krivard/code/ProPPR-git
 CP:=.:${PROPPR}/bin:${PROPPR}/lib/*
+ifeq (,${DATASET})
 DATASET=kbp.dataset.2014-0.7
+endif
 TRAIN=kbp_train
 TEST=kbp_test
 PROGRAM=${DATASET}/kbp.crules:${DATASET}/kbp.sparse
