@@ -2,7 +2,7 @@
 ## use this classpath if you have a copy of the proPPR jar and its dependencies all in the same directory
 #CP:=.:/home/krivard/lib/proPPR.jar
 ## use this classpath if you're working from source
-PROPPR:=/home/krivard/code/ProPPR-git
+PROPPR:=/home/krivard/ProPPR
 CP:=.:${PROPPR}/bin:${PROPPR}/lib/*
 ifeq (,${DATASET})
 DATASET=kbp.dataset.2014-0.7
