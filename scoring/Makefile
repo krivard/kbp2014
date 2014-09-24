@@ -87,3 +87,6 @@ MEASURES:=tac -m sets-micro:is_linked:span+type+kbid
 	./nel evaluate -m $(MEASURES) -f tab \
 	-g ../scoring/gold/$(notdir $(basename $(basename $(basename $*)))).combined.tab \
 	../scoring/$< > ../scoring/$@
+
+print: evaluation
+	for f in `ls $(VERSION)/*$(THRESHOLD)*.evaluation`; do echo $$f; tail -n 9 $$f | cut -f 7,8; done

@@ -16,6 +16,7 @@ JOPTS=-Xmx25G
 ### PARAMETERS ###
 PROVER=dpr:1e-5
 THREADS=7
+MAXT=13
 
 ### TARGETS ###
 VPATH = ${DATASET}
@@ -47,27 +48,31 @@ examples: ${TRAIN}.examples ${TEST}.examples
 
 %.unnorm.solutions.txt: %.answerQuery_did_qid_eid.queries
 	java ${JOPTS} -cp ${CP} edu.cmu.ml.praprolog.QueryAnswerer --programFiles ${PROGRAM} \
-	--queries $< --output $@ --prover ${PROVER} --unnormalized
+	--queries $< --output $@ --prover ${PROVER} --unnormalized --maxT ${MAXT}
 
 %.solutions.txt: %.answerQuery_did_qid_eid.queries
 	java ${JOPTS} -cp ${CP} edu.cmu.ml.praprolog.QueryAnswerer --programFiles ${PROGRAM} \
-	--queries $< --output $@ --prover ${PROVER}
+	--queries $< --output $@ \
+	--prover ${PROVER} --maxT ${MAXT}
 
 %.humanreadable.txt: %.humanreadable.queries
 	java ${JOPTS} -cp ${CP} edu.cmu.ml.praprolog.QueryAnswerer --programFiles ${PROGRAM} \
-	--queries $< --output $@ --prover ${PROVER}
+	--queries $< --output $@ --prover ${PROVER} --maxT ${MAXT}
 
 %.trained.solutions.txt: %.answerQuery_did_qid_eid.queries params.wts
 	java ${JOPTS} -cp ${CP} edu.cmu.ml.praprolog.QueryAnswerer --programFiles ${PROGRAM} \
-	--queries $< --output $@ --params params.wts --reranked --trainer mrr --force --prover ${PROVER}
+	--queries $< --output $@ \
+	--prover ${PROVER} --maxT ${MAXT} \
+	--params params.wts --reranked --trainer mrr --force 
 
 params.wts: ${TRAIN}.examples
 ifeq (,$(wildcard ${DATASET}/${TRAIN}.examples.cooked))
 	touch dummy
 	java ${JOPTS} -cp ${CP} edu.cmu.ml.praprolog.Experiment --programFiles ${PROGRAM} \
-	--prover ${PROVER} --train $< --test dummy --output ${DATASET}/${TRAIN}.examples.cooked --params $@ --threads ${THREADS}
+	--prover ${PROVER} --train $< --test dummy --output ${DATASET}/${TRAIN}.examples.cooked --params $@ --threads ${THREADS} --maxT ${MAXT}
 else
-	java ${JOPTS} -cp ${CP} edu.cmu.ml.praprolog.Trainer --prover ${PROVER} --train ${DATASET}/${TRAIN}.examples.cooked --params $@ --threads ${THREADS}
+	java ${JOPTS} -cp ${CP} edu.cmu.ml.praprolog.Trainer \
+	--prover ${PROVER} --train ${DATASET}/${TRAIN}.examples.cooked --params $@ --threads ${THREADS} --maxT ${MAXT}
 endif
 
 pre: ${TRAIN}.examples
