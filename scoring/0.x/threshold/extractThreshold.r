@@ -1,4 +1,4 @@
-data = read.table("kbp_train.t_0.0.rdata",col.names=c("qid","score","eid","g"),as.is=TRUE);
+data = read.table("kbp_train.t_0.0.rdata",col.names=c("qid","score","eid","t","g"),as.is=TRUE);
 N = length(data$score);
 data = data[order(data$score),];
 data = data.frame(data,pos=data$eid==data$g,p=0.0,i=1:N);

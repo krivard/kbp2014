@@ -21,6 +21,7 @@ MAXT=13
 ### TARGETS ###
 VPATH = ${DATASET}
 
+vpath %.cfacts ${DATASET}/kbp.cfacts/
 
 all: test
 
@@ -30,7 +31,7 @@ train:params.wts
 
 %.inference: %.trained.solutions.txt
 
-score: ${TEST}.trained.solutions.txt ${TRAIN}.trained.solutions.txt 
+score: ${TEST}.trained.solutions.ann.tsv ${TEST}.solutions.ann.tsv ${TRAIN}.trained.solutions.ann.tsv 
 
 prescore: ${TEST}.unnorm.solutions.txt ${TRAIN}.unnorm.solutions.txt
 
@@ -90,5 +91,26 @@ post:  ${TRAIN}.examples params.wts
 test: ${TEST}.examples params.wts
 	java ${JOPTS} -cp ${CP} edu.cmu.ml.praprolog.Tester --tester rt --programFiles ${PROGRAM} \
 	--prover ${PROVER} --test $<--params params.wts --threads ${THREADS} --force
+
+
+####### results processing:
+
+TAB:=$(shell echo "\t")
+
+
+#yields: qid did rank score eid
+%.solutions.tsv: %.solutions.txt
+	sed 's/-1=c[[]//;s/]//;s/,-1[)]//;s/answerQuery[(]//;s/,/\t/' $< | \
+	awk '/#/ {q = $$5 "\t" $$4;} /^[0-9]/ {print q "\t" $$0}' > $@
+
+#yields: qid did rank score eid xtype ntype
+%.solutions.ann.tsv: %.solutions.tsv extractedType_qid_t.cfacts entityType_eid_t.cfacts 
+	sort -k 1b,1 $(word 1,$^) | \
+	join -a 1 -2 2 -t "$(TAB)" - $(word 2,$^) | \
+	sort -k 5b,5 | \
+	join -a 1 -1 5 -2 2 -t "$(TAB)" - $(word 3,$^) | \
+	awk 'BEGIN{FS=OFS="\t"}{nt=$$9; if(nt=="") {nt="na"} print $$2,$$3,$$4,$$5,$$1,$$7,nt}' | \
+	sort -k 1b,1 -k 3n,3 > $@
+# eid qid did rank score "extractedType" xtype "entityType" ntype
 
 .PRECIOUS: %.solutions.txt %.examples params.wts

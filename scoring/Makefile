@@ -5,7 +5,8 @@ PAIR=${TEST} ${TRAIN}
 SET:=$(addsuffix .trained,${PAIR}) ${PAIR}
 DIST=$(addsuffix .results,${PAIR})
 ifeq (,$(EXTRACTIONS))
-EXTRACTIONS=e54_v11.queries_qid_dname_beg_end_np.txt
+EXTRACTIONS=didlist_e54_v11.queries_qid_dname_sid_beg_end_np_ner.txt
+#e54_v11.queries_qid_dname_beg_end_np.txt
 endif
 T:=$(shell echo "\t")
 
@@ -22,7 +23,7 @@ OFFSETBUG=
 endif
 
 
-VPATH = ../ ${DIST} threshold/ $(VERSION)/
+VPATH = ../ $(VERSION)/
 
 all:
 	@echo "specify _.run"
@@ -33,52 +34,36 @@ threshold:  $(addsuffix .t_$(THRESHOLD).scoredResults.txt,${SET})
 	mv ${TRAIN}*.scoredResults.txt threshold
 	touch $@
 
-results: $(addsuffix .t_$(THRESHOLD).results.txt,${SET})
-	mkdir -p ${DIST}
-	mv ${TEST}*.results.txt ${TEST}.results
-	mv ${TRAIN}*.results.txt ${TRAIN}.results
-	touch $@
+#results: $(addsuffix .t_$(THRESHOLD).results.txt,${SET})
+#	mkdir -p ${DIST}
+#	mv ${TEST}*.results.txt ${TEST}.results
+#	mv ${TRAIN}*.results.txt ${TRAIN}.results
+#	touch $@
 
-%.t_$(THRESHOLD).results.txt: %.solutions.txt
-	grep "^[12#]\s" $< | \
-	./solutions2results.pl $(THRESHOLD) | \
+%.t_$(THRESHOLD).scoredResults.txt: %.solutions.ann.tsv
+	./ann2matching.pl $< | \
+	awk -v thresh=${THRESHOLD} 'BEGIN{FS=OFS="\t"}{eid=$$5; t=$$7; if ($$NF == "FALLBACK" || $$4 < thresh) { eid="nil"; t=$$6; } print $$1,$$4,eid,t }'  | \
 	sort -k 1b,1> $@
-#	mv $@ $*.t_$(THRESHOLD).results.txt
 
-%.t_$(THRESHOLD).scoredResults.txt: %.solutions.txt
-	grep "^[12#]\s" $< | \
-	./solutions2scoredresults.pl $(THRESHOLD) | \
-	sort -k 1b,1> $@
-#	mv $@ $*.t_$(THRESHOLD).scoredResults.txt
+%.t_$(THRESHOLD).results.txt: %.t_$(THRESHOLD).scoredResults.txt
+	cut -f 1,3 $< > $@
 
 neleval: $(addsuffix .t_$(THRESHOLD).combined.tab,${SET})
 	touch $@
 
-ifeq (e54_v11.queries_qid_dname_beg_end_np.txt,${EXTRACTIONS})
-%.t_$(THRESHOLD).combined.tab: %.t_$(THRESHOLD).scoredResults.txt
-	join -it "$(T)" ${EXTRACTIONS} $< | \
-	join -ia 1 -t "$(T)" - queryNer_qid_ner.cfacts | \
-	awk 'BEGIN{FS=OFS="\t";N=1}{sub("e","E",$$7); \
-	type=$$8; if (type=="") { type="NA"; } \
-	if ($$7=="nil") { $$7="NIL" sprintf("%04d",N); N=N+1; } \
-	print $$2,$$3,$$4${OFFSETBUG},$$7,$$6,type}' | \
-	sort -k 1b,1 > $@
-else
 %.t_$(THRESHOLD).combined.tab: %.t_$(THRESHOLD).scoredResults.txt
 	join -ia 2 -t "$(T)" ${EXTRACTIONS} $< | \
 	awk 'BEGIN{FS=OFS="\t";N=1}{sub("e","E",$$9); \
-	type=$$7; if (type=="") { type="NA"; } \
+	type=$$NF; \
 	if ($$9=="nil") { $$9="NIL" sprintf("%04d",N); N=N+1; } \
-	print $$2,$$4,$$5${OFFSETBUG},$$9,$$8,type}' | \
+	print $$2,$$4,$$5${OFFSETBUG},$$9,$$8,toupper(type)}' | \
 	sort -k 1b,1 > $@
-endif
-
 
 #evaluation: $(addsuffix .evaluation,${SET})
 
 #evaluation: $(addsuffix .evaluation,$(basename $(basename $(wildcard 0.4/*.combined.tab)))))
 
-evaluation: $(addsuffix .evaluation,$(basename $(basename $(wildcard $(VERSION)/*.combined.tab))))
+evaluation: $(addsuffix .evaluation,$(basename $(basename $(wildcard $(VERSION)/*$(THRESHOLD)*.combined.tab))))
 	touch evaluation
 
 MEASURES:=tac -m sets-micro:is_linked:span+type+kbid
@@ -90,3 +75,4 @@ MEASURES:=tac -m sets-micro:is_linked:span+type+kbid
 
 print: evaluation
 	for f in `ls $(VERSION)/*$(THRESHOLD)*.evaluation`; do echo $$f; tail -n 9 $$f | cut -f 7,8; done
+

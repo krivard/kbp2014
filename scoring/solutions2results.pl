@@ -3,8 +3,15 @@
 my $query="";
 my $soln="nil";
 my $threshold=shift;
-$threshold = 0.0 unless defined($threshold);
-#print "THRESHOLD=$threshold\n";
+my $extFilename = shift;
+my $entFilename = shift;
+defined($entFilename) or die ("Usage:\n\tthreshold extractedType.cfacts entityType.cfacts dataset.solutions.txt > query_soln.txt\n");
+
+open(my $XF,"<$extFilename") or die "Couldn't open extracted types file $extFilename:\n$!\n";
+open(my $NF,"<$entFilename") or die "Couldn't open entity types file $entFilename:\n$!\n";
+
+
+
 while(<>) {
     chomp;
     if (/^#/) {
