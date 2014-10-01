@@ -11,7 +11,7 @@ endif
 T:=$(shell echo "\t")
 
 ifeq (,$(THRESHOLD))
-THRESHOLD=0.028
+THRESHOLD=0.0
 endif
 
 ifeq (,$(VERSION))
@@ -25,8 +25,13 @@ endif
 
 VPATH = ../ $(VERSION)/
 
+.SECONDARY:
+
 all:
 	@echo "specify _.run"
+
+%.pipeline: %.t_$(THRESHOLD).results.txt %.t_$(THRESHOLD).combined.tab
+	touch $@
 
 threshold:  $(addsuffix .t_$(THRESHOLD).scoredResults.txt,${SET})
 	mkdir -p threshold
@@ -57,22 +62,29 @@ neleval: $(addsuffix .t_$(THRESHOLD).combined.tab,${SET})
 	type=$$NF; \
 	if ($$9=="nil") { $$9="NIL" sprintf("%04d",N); N=N+1; } \
 	print $$2,$$4,$$5${OFFSETBUG},$$9,$$8,toupper(type)}' | \
-	sort -k 1b,1 > $@
+	sort -k 1b,1 | \
+	uniq > $@
 
 #evaluation: $(addsuffix .evaluation,${SET})
 
 #evaluation: $(addsuffix .evaluation,$(basename $(basename $(wildcard 0.4/*.combined.tab)))))
 
-evaluation: $(addsuffix .evaluation,$(basename $(basename $(wildcard $(VERSION)/*$(THRESHOLD)*.combined.tab))))
+COMBINED=$(basename $(basename $(wildcard $(VERSION)/*$(THRESHOLD)*.combined.tab)))
+evaluation: $(addsuffix .matching.evaluation,${COMBINED}) $(addsuffix .all.evaluation,${COMBINED})
 	touch evaluation
 
 MEASURES:=tac -m sets-micro:is_linked:span+type+kbid
-%.evaluation: %.combined.tab
+%.matching.evaluation: %.combined.tab
 	cd ../neleval; \
 	./nel evaluate -m $(MEASURES) -f tab \
-	-g ../scoring/gold/$(notdir $(basename $(basename $(basename $*)))).combined.tab \
+	-g ../scoring/gold/$(notdir $(basename $(basename $(basename $*)))).matching.combined.tab \
+	../scoring/$< > ../scoring/$@
+%.all.evaluation: %.combined.tab
+	cd ../neleval; \
+	./nel evaluate -m $(MEASURES) -f tab \
+	-g ../scoring/gold/e54.$(notdir $(basename $(basename $(basename $*)))).all.combined.tab \
 	../scoring/$< > ../scoring/$@
 
-print: evaluation
-	for f in `ls $(VERSION)/*$(THRESHOLD)*.evaluation`; do echo $$f; tail -n 9 $$f | cut -f 7,8; done
+print:
+	for f in `ls $(VERSION)/*.evaluation`; do echo $$f; tail -n 9 $$f | cut -f 7,8; done
 

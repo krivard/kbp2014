@@ -1,2 +1,2 @@
-SUBMISSIONS=limited.baseline0 baseline0 baseline1 semi_supervised1 pagereactor
+SUBMISSIONS=pagereactor baseline0 limited.baseline0 baseline1 semi_supervised1
 #limited.baseline0 baseline0 baseline1 unsupervised1 semi_supervised1 pagereactor
