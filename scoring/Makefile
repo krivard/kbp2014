@@ -53,6 +53,8 @@ threshold:  $(addsuffix .t_$(THRESHOLD).scoredResults.txt,${SET})
 %.t_$(THRESHOLD).results.txt: %.t_$(THRESHOLD).scoredResults.txt
 	cut -f 1,3 $< > $@
 
+%.neleval: %.t_$(THRESHOLD).combined.tab
+
 neleval: $(addsuffix .t_$(THRESHOLD).combined.tab,${SET})
 	touch $@
 
