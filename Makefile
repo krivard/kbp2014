@@ -11,7 +11,7 @@ TRAIN=kbp_train
 TEST=kbp_test
 PROGRAM=${DATASET}/kbp.crules:${DATASET}/kbp.sparse
 #:${DATASET}/kbp.cfacts/entityGivenAnchor_eid_name_p.cfacts:${DATASET}/kbp.cfacts/anchorGivenEntity_eid_name_p.cfacts
-JOPTS=-Xmx25G
+JOPTS=-Xmx35G
 
 ### PARAMETERS ###
 PROVER=dpr:1e-5
@@ -19,9 +19,12 @@ THREADS=7
 MAXT=13
 
 ### TARGETS ###
-VPATH = ${DATASET}
+#VPATH = ${DATASET}
 
 vpath %.cfacts ${DATASET}/kbp.cfacts/
+vpath %.queries ${DATASET}
+vpath %.txt ${DATASET}
+
 
 all: test
 
