@@ -13,13 +13,15 @@ while(<>) {
     if ($state == $SKIP) {
 	next unless ($qid ne $query);
 	$state = $SEARCH;
-	$query = $top = $qid;
+	$query = $qid;
+	$top = $_;
     }
     if ($qid ne $query) {
 	$ntop++;
 	print "$top\tFALLBACK\n";
 	$state = $SEARCH;
-	$query = $top = $qid;
+	$query = $qid;
+	$top = $_;
     }
     if ($state == $SEARCH) {
 	next if ($eid eq "nil");
@@ -27,7 +29,10 @@ while(<>) {
 	$state = $MATCH;
     }
     if ($state == $MATCH) {
-	next unless ($xtype eq $ntype);
+	next unless ( 
+	    ($xtype eq $ntype) or
+	    ( ($xtype eq "na") and ($ntype =~ /org|per|gpe/) )
+	    );
 	print "$_\n";
 	$state = $SKIP;
     }

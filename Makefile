@@ -7,6 +7,9 @@ CP:=.:${PROPPR}/bin:${PROPPR}/lib/*
 ifeq (,${DATASET})
 DATASET=kbp.dataset.2014-0.7
 endif
+ifeq (,${EXTRACTIONS})
+EXTRACTIONS=${DATASET}/ldc.r51.extractions.txt
+endif
 TRAIN=kbp_train
 TEST=kbp_test
 PROGRAM=${DATASET}/kbp.crules:${DATASET}/kbp.sparse
@@ -23,7 +26,8 @@ MAXT=13
 
 vpath %.cfacts ${DATASET}/kbp.cfacts/
 vpath %.queries ${DATASET}
-vpath %.txt ${DATASET}
+#vpath %.txt ${DATASET}
+vpath %.solutions.txt ${DATASET}/proppr-output
 
 
 all: test
@@ -109,13 +113,27 @@ TAB:=$(shell echo "\t")
 	awk '/#/ {q = $$5 "\t" $$4;} /^[0-9]/ {print q "\t" $$0}' > $@
 
 #yields: qid did rank score eid xtype ntype
-%.solutions.ann.tsv: %.solutions.tsv extractedType_qid_t.cfacts entityType_eid_t.cfacts 
+%.solutions.ann.tsv: %.solutions.ann.tsv.proppr %.solutions.ann.tsv.remaining
+	cat $^ |\
+	sort -k 1b,1 -k 3n,3 > $@
+%.solutions.ann.tsv.proppr: %.solutions.tsv extractedType_qid_t.cfacts entityType_eid_t.cfacts 
 	sort -k 1b,1 $(word 1,$^) | \
 	join -a 1 -2 2 -t "$(TAB)" - $(word 2,$^) | \
 	sort -k 5b,5 | \
 	join -a 1 -1 5 -2 2 -t "$(TAB)" - $(word 3,$^) | \
-	awk 'BEGIN{FS=OFS="\t"}{nt=$$9; if(nt=="") {nt="na"} print $$2,$$3,$$4,$$5,$$1,$$7,nt}' | \
-	sort -k 1b,1 -k 3n,3 > $@
+	awk 'BEGIN{FS=OFS="\t"}{\
+	xt = "na"; nt = "ukn"; if ($$6 == "extractedType") { xt = $$7; } else { nt = $$7; }\
+	print $$2,$$3,$$4,$$5,$$1,xt,nt}' | \
+	sort -k 1b,1 -k 3n,3 |\
+	uniq > $@
 # eid qid did rank score "extractedType" xtype "entityType" ntype
+%.solutions.ann.tsv.remaining: %.solutions.ann.tsv.proppr ${EXTRACTIONS}
+	cut -f 1 $< | \
+	uniq | \
+	join -t "${TAB}" -iv 2 - ${EXTRACTIONS} | \
+	awk 'BEGIN{FS=OFS="\t"}{print tolower($$1),$$2,"1","1e-15","nil","per","per"}' |\
+	uniq > $@
+
+
 
 .PRECIOUS: %.solutions.txt %.examples params.wts

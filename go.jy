@@ -1,0 +1,164 @@
+#!/usr/bin/env jython
+
+import os
+import sys
+
+def makeDataset(dataset,subset):
+    return  {
+        'queries':  "%s/%s.answerQuery_did_qid_eid.queries" % (dataset,subset),
+        'examples': "%s/%s.examples" % (dataset,subset),
+        'grounded': "%s/%s.examples.cooked" % (dataset,subset),
+        'solutions': {
+            'untrained':       "%s/%s.solutions.txt" % (dataset,subset),
+            'trained':       "%s/%s.trained.solutions.txt" % (dataset,subset)
+            },
+        'params': "%s/%s.params.wts" % (dataset,subset)
+       }
+
+def go(dataset):
+    # load Configuration
+    flags = Configuration.USE_DEFAULTS \
+    | Configuration.USE_PARAMS \
+    | Configuration.USE_SRW \
+    | Configuration.USE_LEARNINGSET
+
+    
+    train = makeDataset(dataset,"kbp_train.1")
+    test = makeDataset(dataset,"kbp_test.1")
+    
+    print "Jython: instantiating ExperimentConfiguration..."
+    c = ExperimentConfiguration([
+            x % {"d":dataset} for x in [
+                '--programFiles','%(d)s/kbp.crules:%(d)s/kbp.sparse',
+                '--prover','dpr:1e-5',
+                '--weightingScheme','ReLU',
+                '--threads','16',
+                '--params','%(d)s/params.wts',
+                '--trainer','mrr']],flags)
+    c.tester = Tester(c.prover,c.program)
+    print "Jython: done instantiating ExperimentConfiguration."
+    
+
+    for examples in [train,test]:
+        examples_file = open(examples['examples'],'w')
+        # for each query,
+        # save to examples file
+        # save to cooked file
+        # accumulate performance metrics
+        for rawX in RawPosNegExampleStreamer([File(examples['queries'])]).stream():
+            thawedX = c.tester.thawExample(rawX,c.program)
+            writer = GraphWriter()
+            
+            # get solutions
+            solutions = c.prover.proveState(c.program, thawedX.getQueryState(), writer)
+            pos = []
+            neg = []
+            total = []
+        
+            # sample negative examples: take the k*kth negative solution for k=1,2,...
+            k=1
+            i=0
+            for state in solutions.keySet():
+                wt = solutions.get(state)
+                if state.isSolution():
+                    i = i + 1
+                    total.append( (state,wt) )
+                    if state.getGroundGoal() in thawedX.getPosSet():
+                        pos.append(state)
+                        i = i - 1
+                    elif i == k*k:
+                        neg.append(state)
+                        k = k+1
+        
+            # save to examples file
+            examples_file.write( "%s" % thawedX.getQueryState().getHeadGoal().toSaveString().replace("-1","E") )
+            for state in pos:
+                examples_file.write( "\t+%s" % state.getGroundGoal().toSaveString())
+            for state in neg:
+                examples_file.write( "\t-%s" % state.getGroundGoal().toSaveString())
+            examples_file.write("\n")
+
+            # gather graph IDs for grounded file
+            posIds = []
+            negIds = []
+            for (state) in pos:
+                posIds.append( writer.getId(state) )
+            for (state) in neg:
+                negIds.append( writer.getId(state) )
+        
+            query = HashMap()
+            query.put( writer.getId(thawedX.getQueryState()), 1.0 )
+            result = PosNegRWExample(writer.getGraph(), query, posIds, negIds)
+        examples_file.close()
+
+    # untrained inference training examples
+    print "Jython: untrained inference on training examples..."
+    utr_results = c.tester.testExamples(File(train['examples']))
+    print "Jython: done performing untrained inference on training examples."
+    
+    # untrained inference testing examples
+    print "Jython: untrained inference on testing examples..."
+    ute_results = c.tester.testExamples(File(test['examples']))
+    print "Jython: done performing untrained inference on testing examples."
+    
+    # cook training examples
+    #train_cooked = "%s/kbp_train.examples.cooked"
+    print "Jython: grounding training examples..."
+    cooker = ModularMultiExampleCooker(c.prover, c.program, c.nthreads)
+    cooker.cookExamples(File(train['examples']), train['grounded'])
+    print "Jython: done grounding training examples."
+    
+    # cook testing examples
+    print "Jython: grounding testing examples..."
+    cooker.cookExamples(File(test['examples']), test['grounded'])
+    print "Jython: done grounding testing examples."
+    
+    # train training examples
+    print "Jython: training parameters on training examples..."
+    paramVec = c.trainer.trainParametersOnCookedIterator(
+        CookedExampleStreamer(train['grounded'],AnnotatedGraphFactory(AnnotatedGraphFactory.STRING)),
+        c.epochs,c.traceLosses)
+    ParamsFile.save(paramVec,File(train['params']),c)
+    c.tester.setParams(paramVec,c.weightingScheme)
+    print "Jython: done training parameters."
+    
+    # trained inference training examples
+    print "Jython: trained inference on training examples..."
+    ttr_results = c.tester.testExamples(File(train['examples']))
+    print "Jython: done performing trained inference on training examples."
+    
+    # trained inference testing examples
+    print "Jython: trained inference on testing examples..."
+    tte_results = c.tester.testExamples(File(test['examples']))
+    print "Jython: done performing trained inference on testing examples."
+
+    print "\nJython: Done.\n"
+
+if len(sys.argv) < 3:
+    print "Usage:"
+    print "\t",sys.argv[0],"path/to/proppr kbp.dataset\n"
+else:
+    proppr_path = sys.argv[1]
+    dataset = sys.argv[2]
+    sys.path.append(os.path.join(proppr_path,'bin'))
+    proppr_lib = os.path.join(proppr_path,'lib')
+    jars = [f for f in os.listdir(proppr_lib) if f.endswith(".jar")]
+    [sys.path.append(os.path.join(proppr_lib,j)) for j in jars]
+    import edu.cmu.ml.praprolog.ExampleCooker.CookingStatistics as Statistics
+    import org.apache.log4j.PropertyConfigurator as PropertyConfigurator
+    import edu.cmu.ml.praprolog.util.Configuration as Configuration
+    import edu.cmu.ml.praprolog.util.ExperimentConfiguration as ExperimentConfiguration
+    import edu.cmu.ml.praprolog.ExampleCooker as ExampleCooker
+    import edu.cmu.ml.praprolog.ModularMultiExampleCooker as ModularMultiExampleCooker
+    import edu.cmu.ml.praprolog.prove.RawPosNegExampleStreamer as RawPosNegExampleStreamer
+    import edu.cmu.ml.praprolog.graph.GraphWriter as GraphWriter
+    import edu.cmu.ml.praprolog.learn.tools.PosNegRWExample as PosNegRWExample
+    import edu.cmu.ml.praprolog.Tester as Tester
+    import edu.cmu.ml.praprolog.learn.tools.CookedExampleStreamer as CookedExampleStreamer
+    import edu.cmu.ml.praprolog.graph.AnnotatedGraphFactory as AnnotatedGraphFactory
+    import edu.cmu.ml.praprolog.util.Dictionary as Dictionary
+    import edu.cmu.ml.praprolog.util.ParamsFile as ParamsFile
+    import java.io.File as File
+    import java.util.HashMap as HashMap
+    PropertyConfigurator.configure(os.path.join(proppr_path,'conf','log4j.properties'))
+    go(dataset)
